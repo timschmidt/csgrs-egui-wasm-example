@@ -32,7 +32,7 @@ impl eframe::App for CsgrsApp {
                 if input.pointer.primary_down() {
                     // left‑drag → rotate
                     let yaw = delta.x * 0.01;
-                    let pitch = -delta.y * 0.01;
+                    let pitch = delta.y * 0.01;
                     self.rotation =
                         Quat::from_rotation_y(yaw) * Quat::from_rotation_x(pitch) * self.rotation;
                 } else if input.pointer.secondary_down() {
