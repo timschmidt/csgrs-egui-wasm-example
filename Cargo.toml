@@ -1,0 +1,30 @@
+[package]
+name = "csgrs-egui-wasm-example"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = { version = "0.27", default-features = false, features = ["glow"] }
+egui = "0.27"
+glam = "0.27"
+# The following are only pulled in when compiling for the web target
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+wasm-logger = { version = "0.2", optional = true }
+log                    = "0.4"
+
+[features]
+default = [
+    "wasm-bindgen",
+    "wasm-bindgen-futures",
+    "console_error_panic_hook",
+    "wasm-logger",
+    "wasm-bindgen",
+]
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "s"
