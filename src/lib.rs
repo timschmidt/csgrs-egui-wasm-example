@@ -1,19 +1,49 @@
 use eframe::egui;
 use glam::{Quat, Vec3};
+use csgrs::csg::CSG;
+use std::collections::HashSet;
 
 #[derive(Default)]
 pub struct CsgrsApp {
     rotation: Quat,
     translation: egui::Vec2,
     zoom: f32,
+    edges: Vec<(Vec3, Vec3)>,
 }
 
 impl CsgrsApp {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        // ── build a cube with csgrs and collect its unique edges ──────────────
+        let mut uniq: HashSet<((i64, i64, i64), (i64, i64, i64))> = HashSet::new();
+        //let cube = CSG::<()>::cube(2.0, 2.0, 2.0, None).center();
+        let cube = CSG::<()>::icosahedron(2.0, None).center();
+
+        for poly in &cube.polygons {
+            for (a, b) in poly.edges() {
+                // key ≤---> canonicalised (small-grid-snapped) pair
+                let snap = |p: &csgrs::float_types::Real| (*p * 1e5).round() as i64;
+                let key = {
+                    let ka = (snap(&a.pos.x), snap(&a.pos.y), snap(&a.pos.z));
+                    let kb = (snap(&b.pos.x), snap(&b.pos.y), snap(&b.pos.z));
+                    if ka < kb { (ka, kb) } else { (kb, ka) }
+                };
+                uniq.insert(key);
+            }
+        }
+
+        let edges = uniq
+            .into_iter()
+            .map(|(ka, kb)| {
+                let v = |(x, y, z): (i64, i64, i64)| Vec3::new(x as f32, y as f32, z as f32) / 1e5;
+                (v(ka), v(kb))
+            })
+            .collect();
+
         Self {
             rotation: Quat::IDENTITY,
             translation: egui::Vec2::ZERO,
             zoom: 1.0,
+            edges,
         }
     }
 }
@@ -49,50 +79,28 @@ impl eframe::App for CsgrsApp {
 
             // ───── Paint ─────
             let painter = ui.painter_at(rect);
-            draw_cube(&painter, rect, self);
+            draw_csgrs_cube(&painter, rect, self);
         });
     }
 }
 
-// ───── Geometry ─────
-const VERTICES: [Vec3; 8] = [
-    Vec3::new(-1.0, -1.0, -1.0),
-    Vec3::new(1.0, -1.0, -1.0),
-    Vec3::new(1.0, 1.0, -1.0),
-    Vec3::new(-1.0, 1.0, -1.0),
-    Vec3::new(-1.0, -1.0, 1.0),
-    Vec3::new(1.0, -1.0, 1.0),
-    Vec3::new(1.0, 1.0, 1.0),
-    Vec3::new(-1.0, 1.0, 1.0),
-];
-
-const EDGES: [(usize, usize); 12] = [
-    (0, 1), (1, 2), (2, 3), (3, 0),
-    (4, 5), (5, 6), (6, 7), (7, 4),
-    (0, 4), (1, 5), (2, 6), (3, 7),
-];
-
-fn draw_cube(painter: &egui::Painter, rect: egui::Rect, app: &CsgrsApp) {
+fn draw_csgrs_cube(painter: &egui::Painter, rect: egui::Rect, app: &CsgrsApp) {
     let stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
     let size = rect.width().min(rect.height()) * 0.25 * app.zoom;
 
-    // project vertices to screen space
-    let mut projected = Vec::<egui::Pos2>::with_capacity(8);
-    for &v in &VERTICES {
-        let rotated = app.rotation * v;
-        // basic perspective projection
-        let dist = 4.0;
-        let scale = dist / (dist - rotated.z);
-        let p = egui::vec2(rotated.x * scale, rotated.y * scale);
+	// basic perspective projection
+	let dist = 4.0;
 
-        let offset = (egui::vec2(p.x, -p.y) * size) + app.translation;
-        let screen = rect.center() + offset;
-        projected.push(screen);
-    }
+	let project = |v: Vec3| {
+		let rotated = app.rotation * v;
+		let scale = dist / (dist - rotated.z);
+		let p = egui::vec2(rotated.x * scale, rotated.y * scale);
+		let offset = (egui::vec2(p.x, -p.y) * size) + app.translation;
+		rect.center() + offset
+	};
 
-    // draw edges
-    for &(a, b) in &EDGES {
-        painter.line_segment([projected[a], projected[b]], stroke);
+    for &(a, b) in &app.edges {
+        painter.line_segment([project(a), project(b)], stroke);
     }
 }
 
