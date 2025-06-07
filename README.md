@@ -1,4 +1,4 @@
-# csgrs egui example
+# csgrs egui wasm example
 
 ![Screenshot](doc/screenshot.png)
 
